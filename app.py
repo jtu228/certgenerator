@@ -1,3 +1,4 @@
+import html
 import io
 import json
 import os
@@ -151,6 +152,41 @@ def merge_unique(values):
     return result
 
 
+def clear_quick_standards(standard_labels):
+    """Clear standard checkboxes and the custom standard input."""
+    for label in standard_labels:
+        st.session_state[f"standard_option_{label}"] = False
+    st.session_state["quick_custom_standard"] = ""
+
+
+def clear_people_input():
+    """Clear the quick-entry people input before widgets are rendered."""
+    st.session_state["quick_people_input"] = ""
+
+
+def render_standard_chips(values):
+    """Render selected standards as compact, escaped visual tags."""
+    chips = "".join(
+        f'<span class="standard-chip">{html.escape(value)}</span>' for value in values
+    )
+    st.markdown(f'<div class="chip-row">{chips}</div>', unsafe_allow_html=True)
+
+
+def render_checklist(items):
+    """Render the generation prerequisites as a compact status card."""
+    rows = []
+    for complete, text in items:
+        status_class = "check-ok" if complete else "check-pending"
+        icon = "✓" if complete else "○"
+        rows.append(
+            f'<div class="check-row {status_class}"><span>{icon}</span>'
+            f'<span>{html.escape(text)}</span></div>'
+        )
+    st.markdown(
+        f'<div class="check-card">{"".join(rows)}</div>', unsafe_allow_html=True
+    )
+
+
 def safe_filename(value):
     """Make a short Windows-compatible filename component."""
     cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", clean_value(value))
@@ -268,7 +304,7 @@ def records_from_editor(standard_presets):
     edited_df = st.data_editor(
         initial_df,
         num_rows="fixed",
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         height=380,
         column_config={
@@ -301,7 +337,7 @@ def records_from_upload():
             data=make_excel_template(),
             file_name="学员信息上传模板.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
         )
         st.caption("系统会自动跳过标有“示例”的行。")
 
@@ -346,79 +382,131 @@ def records_from_upload():
 def quick_records(standard_presets):
     selected_labels = []
     standard_labels = list(standard_presets.keys())
-    with st.popover("选择标准（支持多选）", use_container_width=True):
-        for row_start in range(0, len(standard_labels), 2):
-            standard_columns = st.columns(2)
-            for column_index, label in enumerate(
-                standard_labels[row_start : row_start + 2]
-            ):
-                with standard_columns[column_index]:
-                    if st.checkbox(label, key=f"standard_option_{label}"):
-                        selected_labels.append(label)
+    with st.container(border=True):
+        st.markdown("### ① 选择标准与培训日期")
+        standard_column, date_column = st.columns([1.35, 1])
 
-    if selected_labels:
-        st.caption(f"已选择 {len(selected_labels)} 个标准")
-    custom_standard = st.text_input(
-        "自定义标准（可选）",
-        placeholder="例如：企业内部标准 Q/ABC 001-2026",
-    )
+        with standard_column:
+            with st.popover("选择标准（支持多选）", width="stretch"):
+                st.caption("勾选完成后，点击弹出框外的空白处即可关闭。")
+                for row_start in range(0, len(standard_labels), 2):
+                    standard_columns = st.columns(2)
+                    for column_index, label in enumerate(
+                        standard_labels[row_start : row_start + 2]
+                    ):
+                        with standard_columns[column_index]:
+                            if st.checkbox(label, key=f"standard_option_{label}"):
+                                selected_labels.append(label)
 
-    standard_values = [standard_presets[label] for label in selected_labels]
-    if custom_standard:
-        standard_values.extend(re.split(r"[\r\n,，;；]+", custom_standard))
-    standards = "、".join(merge_unique(standard_values))
+            with st.expander("更多：填写自定义标准"):
+                custom_standard = st.text_input(
+                    "自定义标准",
+                    placeholder="例如：企业内部标准 Q/ABC 001-2026",
+                    label_visibility="collapsed",
+                    key="quick_custom_standard",
+                )
 
-    selected_dates = st.date_input(
-        "培训日期",
-        value=[],
-        format="YYYY/MM/DD",
-        help="选择一个日期为单日培训；继续选择结束日期即为连续培训。",
-    )
-    if len(selected_dates) == 1:
-        training_date = format_training_date(selected_dates[0])
-    elif len(selected_dates) == 2:
-        training_date = format_training_date(selected_dates[0], selected_dates[1])
-    else:
-        training_date = ""
+        with date_column:
+            selected_dates = st.date_input(
+                "培训日期",
+                value=[],
+                format="YYYY/MM/DD",
+                help="选择一个日期为单日培训；继续选择结束日期即为连续培训。",
+                key="quick_training_dates",
+            )
 
-    if training_date:
-        st.caption(f"证书显示：{training_date}")
-    raw_people = st.text_area(
-        "粘贴姓名和身份证号",
-        height=240,
-        placeholder=(
-            "仅姓名：每行一个\n张三\n李四\n\n"
-            "或从 Excel 复制两列：\n张三    440683199001010001\n"
-            "李四    440683199001010002"
-        ),
-        help="可直接从 Excel 粘贴“姓名、身份证号”两列；仅粘贴姓名也可以。重复姓名会自动去除。",
-    )
-    people = parse_people(raw_people)
+        standard_values = [standard_presets[label] for label in selected_labels]
+        if custom_standard:
+            standard_values.extend(re.split(r"[\r\n,，;；]+", custom_standard))
+        standard_values = merge_unique(standard_values)
+        standards = "、".join(standard_values)
 
-    with st.expander("可选：自动生成证书编号"):
-        number_prefix = st.text_input(
-            "证书编号前缀",
-            placeholder="例如：T-2026-（不填写则证书编号留空）",
+        if len(selected_dates) == 1:
+            training_date = format_training_date(selected_dates[0])
+        elif len(selected_dates) == 2:
+            training_date = format_training_date(
+                selected_dates[0], selected_dates[1]
+            )
+        else:
+            training_date = ""
+
+        if standard_values:
+            chip_title, clear_column = st.columns([4, 1])
+            with chip_title:
+                st.caption(f"已选择 {len(standard_values)} 个标准")
+            with clear_column:
+                st.button(
+                    "清空标准",
+                    key="clear_quick_standards",
+                    on_click=clear_quick_standards,
+                    args=(standard_labels,),
+                    width="stretch",
+                )
+            render_standard_chips(standard_values)
+        else:
+            st.caption("尚未选择标准")
+
+        if training_date:
+            st.caption(f"证书日期将显示为：{training_date}")
+
+    with st.container(border=True):
+        st.markdown("### ② 粘贴学员信息")
+        st.caption("支持每行一个姓名，也支持直接从 Excel 复制“姓名、身份证号”两列。")
+        raw_people = st.text_area(
+            "学员信息",
+            height=180,
+            placeholder=(
+                "仅姓名：\n张三\n李四\n\n"
+                "或从 Excel 复制两列后直接粘贴"
+            ),
+            label_visibility="collapsed",
+            key="quick_people_input",
         )
-        number_start = st.number_input("起始序号", min_value=0, value=1, step=1)
-        number_digits = st.number_input("序号位数", min_value=1, max_value=8, value=3, step=1)
+        people = parse_people(raw_people)
 
-    if people:
         id_count = sum(bool(person["身份证号"]) for person in people)
-        st.success(
-            f"已识别 {len(people)} 个不重复姓名，其中 {id_count} 人包含身份证号。"
-        )
-        with st.expander("预览录入信息"):
+        if people:
+            count_column, clear_people_column = st.columns([4, 1])
+            with count_column:
+                st.success(
+                    f"已识别 {len(people)} 人，其中 {id_count} 人包含身份证号。"
+                )
+            with clear_people_column:
+                st.button(
+                    "清空人员",
+                    key="clear_quick_people",
+                    on_click=clear_people_input,
+                    width="stretch",
+                )
+
+            preview_people = [
+                {
+                    "姓名": person["姓名"],
+                    "身份证号": mask_id_card(person["身份证号"]),
+                }
+                for person in people[:10]
+            ]
             st.dataframe(
-                [
-                    {
-                        "姓名": person["姓名"],
-                        "身份证号": mask_id_card(person["身份证号"]),
-                    }
-                    for person in people
-                ],
-                use_container_width=True,
+                preview_people,
+                width="stretch",
                 hide_index=True,
+                height=min(390, 38 + 35 * len(preview_people)),
+            )
+            if len(people) > len(preview_people):
+                st.caption(f"当前仅预览前 10 人，其余 {len(people) - 10} 人已识别。")
+        else:
+            st.caption("粘贴后会在这里显示人数和脱敏预览。")
+
+        st.caption("🔒 身份证号仅用于本次证书生成，应用未配置数据库存储。")
+
+        with st.expander("更多：自动生成证书编号"):
+            number_prefix = st.text_input(
+                "证书编号前缀",
+                placeholder="例如：T-2026-（不填写则证书编号留空）",
+            )
+            number_start = st.number_input("起始序号", min_value=0, value=1, step=1)
+            number_digits = st.number_input(
+                "序号位数", min_value=1, max_value=8, value=3, step=1
             )
 
     records = []
@@ -437,111 +525,269 @@ def quick_records(standard_presets):
             }
         )
 
-    return records, bool(standards), bool(training_date)
+    return records, {
+        "has_standard": bool(standards),
+        "standard_count": len(standard_values),
+        "has_date": bool(training_date),
+        "training_date": training_date,
+        "people_count": len(people),
+        "id_count": id_count,
+    }
 
 
 st.set_page_config(page_title="证书智能制作工具", page_icon="🎓", layout="centered")
-st.title("🎓 内审员证书智能制作工具")
-st.caption("选择标准、填写日期并粘贴姓名，即可一次生成全部证书。")
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background: linear-gradient(180deg, #f1f7f5 0, #f8faf9 240px, #f8faf9 100%);
+    }
+    .block-container {
+        max-width: 980px;
+        padding-top: 2.25rem;
+        padding-bottom: 4rem;
+    }
+    .hero-card {
+        padding: 1.55rem 1.7rem;
+        margin-bottom: 1.1rem;
+        border: 1px solid #dbe9e4;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #ffffff 0%, #edf7f3 100%);
+        box-shadow: 0 10px 30px rgba(24, 88, 69, 0.07);
+    }
+    .hero-eyebrow {
+        color: #16705a;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        margin-bottom: 0.35rem;
+    }
+    .hero-card h1 {
+        color: #17382f;
+        font-size: 2rem;
+        line-height: 1.25;
+        margin: 0 0 0.45rem;
+    }
+    .hero-card p {
+        color: #587068;
+        margin: 0;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background: rgba(255, 255, 255, 0.96);
+        border-color: #dfe9e5;
+        border-radius: 16px;
+        box-shadow: 0 5px 18px rgba(36, 77, 65, 0.045);
+    }
+    .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin: 0.1rem 0 0.5rem;
+    }
+    .standard-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.34rem 0.65rem;
+        border: 1px solid #b9d8ce;
+        border-radius: 999px;
+        color: #176451;
+        background: #edf8f4;
+        font-size: 0.82rem;
+        line-height: 1.25;
+    }
+    .check-card {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+        padding: 0.85rem;
+        margin: 0.35rem 0 1rem;
+        border-radius: 12px;
+        background: #f5f8f7;
+    }
+    .check-row {
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-start;
+        font-size: 0.9rem;
+    }
+    .check-ok { color: #176451; }
+    .check-pending { color: #8a6741; }
+    div[data-testid="stButton"] button[kind="primary"] {
+        min-height: 3.15rem;
+        font-size: 1rem;
+        font-weight: 700;
+        border-radius: 12px;
+    }
+    @media (max-width: 640px) {
+        .block-container { padding-top: 1rem; }
+        .hero-card { padding: 1.2rem; }
+        .hero-card h1 { font-size: 1.55rem; }
+        .check-card { grid-template-columns: 1fr; }
+    }
+    </style>
+    <div class="hero-card">
+        <div class="hero-eyebrow">CERTIFICATE GENERATOR</div>
+        <h1>🎓 内审员证书智能制作工具</h1>
+        <p>选择标准和培训日期，粘贴学员信息，即可一次生成全部证书。</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 standard_presets = load_standard_presets()
 data_to_process = []
-inputs_valid = True
+inputs_valid = False
+quick_summary = None
 
-st.markdown("### 第一步：选择录入方式")
 mode = st.radio(
-    "录入方式",
+    "选择录入方式",
     ["快速生成", "完整信息录入"],
     horizontal=True,
-    label_visibility="collapsed",
+    help="大多数场景使用快速生成；每名学员信息不同时使用完整信息录入。",
 )
 
-st.divider()
-st.markdown("### 第二步：填写证书信息")
-
 if mode == "快速生成":
-    data_to_process, has_standard, has_date = quick_records(standard_presets)
-    inputs_valid = has_standard and has_date and bool(data_to_process)
-    if data_to_process and not has_standard:
-        st.warning("请至少选择或填写一个标准。")
-    if data_to_process and not has_date:
-        st.warning("请填写培训日期。")
-else:
-    full_mode = st.radio(
-        "完整信息录入方式",
-        ["Excel 文件上传", "网页表格填写（支持粘贴）"],
-        horizontal=True,
+    data_to_process, quick_summary = quick_records(standard_presets)
+    inputs_valid = (
+        quick_summary["has_standard"]
+        and quick_summary["has_date"]
+        and bool(data_to_process)
     )
-    if full_mode == "Excel 文件上传":
-        data_to_process = records_from_upload()
-    else:
-        data_to_process = records_from_editor(standard_presets)
+else:
+    with st.container(border=True):
+        st.markdown("### ① 录入完整证书信息")
+        full_mode = st.radio(
+            "完整信息录入方式",
+            ["Excel 文件上传", "网页表格填写（支持粘贴）"],
+            horizontal=True,
+        )
+        if full_mode == "Excel 文件上传":
+            data_to_process = records_from_upload()
+        else:
+            data_to_process = records_from_editor(standard_presets)
     inputs_valid = bool(data_to_process)
 
-st.divider()
-st.markdown("### 第三步：确认模板并生成")
+with st.container(border=True):
+    final_step = "③" if mode == "快速生成" else "②"
+    st.markdown(f"### {final_step} 确认并生成")
 
-if os.path.exists(DEFAULT_TEMPLATE):
-    template_option = st.radio(
-        "证书 Word 模板",
-        ["使用内置模板", "上传本地新模板"],
-        horizontal=True,
-    )
-    if template_option == "使用内置模板":
+    if os.path.exists(DEFAULT_TEMPLATE):
         template_source = DEFAULT_TEMPLATE
+        template_label = "内置模板：内审员证书.docx"
+        st.success("✓ 已启用内置证书模板")
+        with st.expander("更换为其他 Word 模板"):
+            uploaded_template = st.file_uploader(
+                "上传自定义 Word 模板",
+                type=["docx"],
+                key="custom_word_template",
+            )
+        if uploaded_template:
+            template_source = uploaded_template
+            template_label = f"自定义模板：{uploaded_template.name}"
     else:
-        template_source = st.file_uploader("上传自定义 Word 模板", type=["docx"])
-else:
-    st.warning("仓库中未发现默认模板，请上传 Word 模板。")
-    template_source = st.file_uploader("上传 Word 模板", type=["docx"])
-
-can_generate = bool(template_source) and inputs_valid
-if st.button(
-    "🚀 开始批量生成",
-    type="primary",
-    use_container_width=True,
-    disabled=not can_generate,
-):
-    try:
-        progress_bar = st.progress(0, text="正在生成证书……")
-        template_bytes = read_template_bytes(template_source)
-        result = generate_documents(
-            template_bytes,
-            data_to_process,
-            progress_callback=lambda value: progress_bar.progress(
-                value, text="正在生成证书……"
-            ),
+        template_source = st.file_uploader(
+            "上传 Word 模板", type=["docx"], key="required_word_template"
         )
-        progress_bar.empty()
-        if not result:
-            st.error("没有找到可生成证书的有效姓名。")
-        else:
-            st.session_state["generation_result"] = result
-            st.balloons()
-    except Exception as error:
-        st.error(f"制作失败：{error}")
+        template_label = (
+            f"自定义模板：{template_source.name}"
+            if template_source
+            else "尚未选择 Word 模板"
+        )
+        st.warning("仓库中未发现默认模板，请上传 Word 模板。")
 
-if not can_generate:
-    st.info("填写完整信息并确认模板后，即可开始生成。")
+    template_ready = bool(template_source)
+    if mode == "快速生成":
+        checklist = [
+            (
+                quick_summary["has_standard"],
+                f"已选择 {quick_summary['standard_count']} 个标准"
+                if quick_summary["has_standard"]
+                else "尚未选择标准",
+            ),
+            (
+                quick_summary["has_date"],
+                f"培训日期：{quick_summary['training_date']}"
+                if quick_summary["has_date"]
+                else "尚未选择培训日期",
+            ),
+            (
+                bool(data_to_process),
+                (
+                    f"已录入 {quick_summary['people_count']} 人，"
+                    f"含身份证号 {quick_summary['id_count']} 人"
+                )
+                if data_to_process
+                else "尚未粘贴学员信息",
+            ),
+            (template_ready, template_label),
+        ]
+    else:
+        checklist = [
+            (
+                bool(data_to_process),
+                f"已载入 {len(data_to_process)} 条完整信息"
+                if data_to_process
+                else "尚未载入学员信息",
+            ),
+            (template_ready, template_label),
+        ]
+    render_checklist(checklist)
+
+    can_generate = template_ready and inputs_valid
+    button_label = (
+        f"🚀 开始生成 {len(data_to_process)} 份证书"
+        if data_to_process
+        else "🚀 开始批量生成"
+    )
+    if st.button(
+        button_label,
+        type="primary",
+        width="stretch",
+        disabled=not can_generate,
+    ):
+        try:
+            progress_bar = st.progress(0, text="正在生成证书……")
+            template_bytes = read_template_bytes(template_source)
+            result = generate_documents(
+                template_bytes,
+                data_to_process,
+                progress_callback=lambda value: progress_bar.progress(
+                    value, text="正在生成证书……"
+                ),
+            )
+            progress_bar.empty()
+            if not result:
+                st.error("没有找到可生成证书的有效姓名。")
+            else:
+                st.session_state["generation_result"] = result
+                st.balloons()
+        except Exception as error:
+            st.error(f"制作失败：{error}")
+
+    if not can_generate:
+        pending_items = [text for complete, text in checklist if not complete]
+        st.caption("还需完成：" + "；".join(pending_items))
 
 result = st.session_state.get("generation_result")
 if result:
-    st.success(f"制作完成，共 {result['count']} 份证书。")
-    download_left, download_right = st.columns(2)
-    with download_left:
-        st.download_button(
-            "📄 下载合并 Word",
-            data=result["merged"],
-            file_name="证书汇总导出.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
-        )
-    with download_right:
-        st.download_button(
-            "🗂️ 下载单独证书 ZIP",
-            data=result["zip"],
-            file_name="单独证书.zip",
-            mime="application/zip",
-            use_container_width=True,
-        )
+    with st.container(border=True):
+        st.markdown("### ✅ 证书生成完成")
+        st.success(f"共生成 {result['count']} 份证书，请选择需要的下载方式。")
+        download_left, download_right = st.columns(2)
+        with download_left:
+            st.download_button(
+                "📄 下载合并 Word",
+                data=result["merged"],
+                file_name="证书汇总导出.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                width="stretch",
+            )
+        with download_right:
+            st.download_button(
+                "🗂️ 下载单独证书 ZIP",
+                data=result["zip"],
+                file_name="单独证书.zip",
+                mime="application/zip",
+                width="stretch",
+            )
 
