@@ -83,16 +83,36 @@ def mask_id_card(id_str):
     return id_str
 
 
-def parse_names(raw_names):
-    """Accept names pasted by line, comma, semicolon, or tab and de-duplicate."""
-    names = []
-    seen = set()
-    for item in re.split(r"[\r\n,，;；\t]+", raw_names or ""):
-        name = item.strip()
-        if name and name not in seen:
-            names.append(name)
-            seen.add(name)
-    return names
+def parse_people(raw_people):
+    """Parse names or Excel-style name/ID rows and de-duplicate by name."""
+    people = []
+    seen_names = set()
+
+    for raw_line in re.split(r"[\r\n]+", raw_people or ""):
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        tab_values = [value.strip() for value in line.split("\t")]
+        if len(tab_values) >= 2:
+            candidates = [(tab_values[0], tab_values[1])]
+        else:
+            candidates = [
+                (value.strip(), "")
+                for value in re.split(r"[,，;；]+", line)
+                if value.strip()
+            ]
+
+        for name, id_card in candidates:
+            if name in {"姓名", "名字"} and (
+                not id_card or id_card in {"身份证号", "身份证号码"}
+            ):
+                continue
+            if name and name not in seen_names:
+                people.append({"姓名": name, "身份证号": id_card})
+                seen_names.add(name)
+
+    return people
 
 
 def format_training_date(start_date, end_date=None):
@@ -326,7 +346,7 @@ def records_from_upload():
 def quick_records(standard_presets):
     selected_labels = []
     standard_labels = list(standard_presets.keys())
-    with st.expander("选择标准（支持多选）", expanded=True):
+    with st.popover("选择标准（支持多选）", use_container_width=True):
         for row_start in range(0, len(standard_labels), 2):
             standard_columns = st.columns(2)
             for column_index, label in enumerate(
@@ -363,13 +383,17 @@ def quick_records(standard_presets):
 
     if training_date:
         st.caption(f"证书显示：{training_date}")
-    raw_names = st.text_area(
-        "粘贴姓名",
+    raw_people = st.text_area(
+        "粘贴姓名和身份证号",
         height=240,
-        placeholder="每行一个姓名，例如：\n张三\n李四\n王五",
-        help="也支持用逗号、分号或 Tab 分隔；重复姓名会自动去除。",
+        placeholder=(
+            "仅姓名：每行一个\n张三\n李四\n\n"
+            "或从 Excel 复制两列：\n张三    440683199001010001\n"
+            "李四    440683199001010002"
+        ),
+        help="可直接从 Excel 粘贴“姓名、身份证号”两列；仅粘贴姓名也可以。重复姓名会自动去除。",
     )
-    names = parse_names(raw_names)
+    people = parse_people(raw_people)
 
     with st.expander("可选：自动生成证书编号"):
         number_prefix = st.text_input(
@@ -379,13 +403,26 @@ def quick_records(standard_presets):
         number_start = st.number_input("起始序号", min_value=0, value=1, step=1)
         number_digits = st.number_input("序号位数", min_value=1, max_value=8, value=3, step=1)
 
-    if names:
-        st.success(f"已识别 {len(names)} 个不重复姓名。")
-        with st.expander("预览姓名"):
-            st.write("、".join(names))
+    if people:
+        id_count = sum(bool(person["身份证号"]) for person in people)
+        st.success(
+            f"已识别 {len(people)} 个不重复姓名，其中 {id_count} 人包含身份证号。"
+        )
+        with st.expander("预览录入信息"):
+            st.dataframe(
+                [
+                    {
+                        "姓名": person["姓名"],
+                        "身份证号": mask_id_card(person["身份证号"]),
+                    }
+                    for person in people
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
 
     records = []
-    for index, name in enumerate(names):
+    for index, person in enumerate(people):
         certificate_number = ""
         if number_prefix.strip():
             sequence = int(number_start) + index
@@ -393,8 +430,8 @@ def quick_records(standard_presets):
         records.append(
             {
                 "证书编号": certificate_number,
-                "姓名": name,
-                "身份证号": "",
+                "姓名": person["姓名"],
+                "身份证号": person["身份证号"],
                 "培训日期": training_date,
                 "标准号": standards,
             }
