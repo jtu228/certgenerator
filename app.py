@@ -382,13 +382,27 @@ def records_from_upload():
 def quick_records(standard_presets):
     selected_labels = []
     standard_labels = list(standard_presets.keys())
-    with st.container(border=True):
-        st.markdown("### ① 选择标准与培训日期")
-        standard_column, date_column = st.columns([1.35, 1])
+    with st.container(border=True, key="quick_setup"):
+        st.markdown(
+            '<div class="panel-title">① 选择标准与培训日期</div>',
+            unsafe_allow_html=True,
+        )
+        selected_count = sum(
+            1
+            for label in standard_labels
+            if st.session_state.get(f"standard_option_{label}")
+        )
+        popover_label = (
+            f"已选择 {selected_count} 个标准"
+            if selected_count
+            else "选择标准（支持多选）"
+        )
+        standard_column, date_column = st.columns(2, gap="medium")
 
         with standard_column:
-            with st.popover("选择标准（支持多选）", width="stretch"):
-                st.caption("勾选完成后，点击弹出框外的空白处即可关闭。")
+            st.markdown('<p class="field-label">培训标准</p>', unsafe_allow_html=True)
+            with st.popover(popover_label, width="stretch"):
+                st.caption("勾选完成后，点击弹出框外即可关闭。")
                 for row_start in range(0, len(standard_labels), 2):
                     standard_columns = st.columns(2)
                     for column_index, label in enumerate(
@@ -398,22 +412,25 @@ def quick_records(standard_presets):
                             if st.checkbox(label, key=f"standard_option_{label}"):
                                 selected_labels.append(label)
 
-            with st.expander("更多：填写自定义标准"):
-                custom_standard = st.text_input(
-                    "自定义标准",
-                    placeholder="例如：企业内部标准 Q/ABC 001-2026",
-                    label_visibility="collapsed",
-                    key="quick_custom_standard",
-                )
-
         with date_column:
+            st.markdown(
+                '<p class="field-label">培训日期 '
+                '<span class="field-hint">单日点一次，区间再点结束日</span></p>',
+                unsafe_allow_html=True,
+            )
             selected_dates = st.date_input(
                 "培训日期",
                 value=[],
                 format="YYYY/MM/DD",
-                help="选择一个日期为单日培训；继续选择结束日期即为连续培训。",
+                label_visibility="collapsed",
                 key="quick_training_dates",
             )
+
+        custom_standard = st.text_input(
+            "自定义标准（可选）",
+            placeholder="例如：企业内部标准 Q/ABC 001-2026",
+            key="quick_custom_standard",
+        )
 
         standard_values = [standard_presets[label] for label in selected_labels]
         if custom_standard:
@@ -430,24 +447,44 @@ def quick_records(standard_presets):
         else:
             training_date = ""
 
+        standard_status = (
+            f"已选择 {len(standard_values)} 项"
+            if standard_values
+            else "尚未选择"
+        )
+        date_status = training_date or "尚未选择"
+        st.markdown(
+            f"""
+            <div class="setup-status">
+                <div>
+                    <div class="setup-k">写入证书的标准</div>
+                    <div class="setup-v{' is-pending' if not standard_values else ''}">
+                        {html.escape(standard_status)}
+                    </div>
+                </div>
+                <div>
+                    <div class="setup-k">写入证书的日期</div>
+                    <div class="setup-v{' is-pending' if not training_date else ''}">
+                        {html.escape(date_status)}
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
         if standard_values:
-            chip_title, clear_column = st.columns([4, 1])
+            chip_title, clear_column = st.columns([5, 1], vertical_alignment="center")
             with chip_title:
-                st.caption(f"已选择 {len(standard_values)} 个标准")
+                render_standard_chips(standard_values)
             with clear_column:
                 st.button(
-                    "清空标准",
+                    "清空",
                     key="clear_quick_standards",
                     on_click=clear_quick_standards,
                     args=(standard_labels,),
                     width="stretch",
                 )
-            render_standard_chips(standard_values)
-        else:
-            st.caption("尚未选择标准")
-
-        if training_date:
-            st.caption(f"证书日期将显示为：{training_date}")
 
     with st.container(border=True):
         st.markdown("### ② 粘贴学员信息")
@@ -612,6 +649,84 @@ st.markdown(
     }
     .check-ok { color: #176451; }
     .check-pending { color: #8a6741; }
+    .panel-title {
+        color: #17382f;
+        font-size: 1.15rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin: 0.1rem 0 0.85rem;
+    }
+    .field-label {
+        color: #3d5c54;
+        font-size: 0.8rem;
+        font-weight: 650;
+        letter-spacing: 0.04em;
+        margin: 0 0 0.35rem;
+    }
+    .field-hint {
+        margin-left: 0.45rem;
+        color: #7b8c86;
+        font-size: 0.72rem;
+        font-weight: 500;
+        letter-spacing: 0;
+    }
+    .setup-status {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.8rem;
+        margin: 0.15rem 0 0.55rem;
+        padding: 0.8rem 0.95rem;
+        border: 1px solid #e1ece8;
+        border-radius: 12px;
+        background: #f4f8f6;
+    }
+    .setup-k {
+        color: #5d746c;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.18rem;
+    }
+    .setup-v {
+        color: #17382f;
+        font-size: 0.92rem;
+        font-weight: 650;
+        line-height: 1.4;
+    }
+    .setup-v.is-pending {
+        color: #7b8c86;
+        font-weight: 500;
+    }
+    .st-key-quick_setup [data-testid="stVerticalBlock"] {
+        gap: 0.55rem;
+    }
+    .st-key-quick_setup [data-testid="stMarkdownContainer"]:has(.field-label) {
+        padding-bottom: 0;
+    }
+    .st-key-quick_setup div[data-testid="stPopover"] button {
+        min-height: 2.8rem;
+        justify-content: space-between;
+        background: #ffffff !important;
+        border: 1px solid #d3e2dc !important;
+        color: #17382f !important;
+        font-weight: 500;
+        box-shadow: none !important;
+    }
+    .st-key-quick_setup div[data-testid="stPopover"] button:hover {
+        border-color: #176b57 !important;
+        background: #f7fbf9 !important;
+    }
+    .st-key-quick_setup [data-testid="stDateInputField"],
+    .st-key-quick_setup [data-testid="stTextInputRootElement"] {
+        min-height: 2.8rem !important;
+        background-color: #ffffff !important;
+        border: 1px solid #d3e2dc !important;
+        border-radius: 8px !important;
+    }
+    .st-key-quick_setup [data-testid="stDateInputField"]:hover,
+    .st-key-quick_setup [data-testid="stTextInputRootElement"]:hover {
+        border-color: #176b57 !important;
+    }
     div[data-testid="stButton"] button[kind="primary"] {
         min-height: 3.15rem;
         font-size: 1rem;
@@ -623,6 +738,7 @@ st.markdown(
         .hero-card { padding: 1.2rem; }
         .hero-card h1 { font-size: 1.55rem; }
         .check-card { grid-template-columns: 1fr; }
+        .setup-status { grid-template-columns: 1fr; }
     }
     </style>
     <div class="hero-card">
