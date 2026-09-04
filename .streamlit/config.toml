@@ -7,6 +7,7 @@ font = "sans serif"
 
 [client]
 showErrorDetails = false
+toolbarMode = "minimal"
 
 [browser]
 gatherUsageStats = false

@@ -164,12 +164,19 @@ def clear_people_input():
     st.session_state["quick_people_input"] = ""
 
 
-def render_standard_chips(values):
-    """Render selected standards as compact, escaped visual tags."""
+def standard_chips_html(values):
+    """Build selected standards as compact, escaped visual tags."""
     chips = "".join(
         f'<span class="standard-chip">{html.escape(value)}</span>' for value in values
     )
-    st.markdown(f'<div class="chip-row">{chips}</div>', unsafe_allow_html=True)
+    return f'<div class="chip-row">{chips}</div>'
+
+
+def section_title(text):
+    """Render a card heading without Markdown anchor icons."""
+    st.markdown(
+        f'<div class="panel-title">{html.escape(text)}</div>', unsafe_allow_html=True
+    )
 
 
 def render_checklist(items):
@@ -383,10 +390,7 @@ def quick_records(standard_presets):
     selected_labels = []
     standard_labels = list(standard_presets.keys())
     with st.container(border=True, key="quick_setup"):
-        st.markdown(
-            '<div class="panel-title">① 选择标准与培训日期</div>',
-            unsafe_allow_html=True,
-        )
+        section_title("① 选择标准与培训日期")
         selected_count = sum(
             1
             for label in standard_labels
@@ -448,25 +452,25 @@ def quick_records(standard_presets):
             training_date = ""
 
         standard_status = (
-            f"已选择 {len(standard_values)} 项"
+            standard_chips_html(standard_values)
             if standard_values
-            else "尚未选择"
+            else '<div class="setup-v is-pending">尚未选择</div>'
         )
-        date_status = training_date or "尚未选择"
+        date_status = (
+            f'<div class="setup-v">{html.escape(training_date)}</div>'
+            if training_date
+            else '<div class="setup-v is-pending">尚未选择</div>'
+        )
         st.markdown(
             f"""
             <div class="setup-status">
                 <div>
                     <div class="setup-k">写入证书的标准</div>
-                    <div class="setup-v{' is-pending' if not standard_values else ''}">
-                        {html.escape(standard_status)}
-                    </div>
+                    {standard_status}
                 </div>
                 <div>
                     <div class="setup-k">写入证书的日期</div>
-                    <div class="setup-v{' is-pending' if not training_date else ''}">
-                        {html.escape(date_status)}
-                    </div>
+                    {date_status}
                 </div>
             </div>
             """,
@@ -474,27 +478,27 @@ def quick_records(standard_presets):
         )
 
         if standard_values:
-            chip_title, clear_column = st.columns([5, 1], vertical_alignment="center")
-            with chip_title:
-                render_standard_chips(standard_values)
-            with clear_column:
-                st.button(
-                    "清空",
-                    key="clear_quick_standards",
-                    on_click=clear_quick_standards,
-                    args=(standard_labels,),
-                    width="stretch",
-                )
+            st.button(
+                "清空已选标准",
+                key="clear_quick_standards",
+                type="tertiary",
+                on_click=clear_quick_standards,
+                args=(standard_labels,),
+            )
 
-    with st.container(border=True):
-        st.markdown("### ② 粘贴学员信息")
-        st.caption("支持每行一个姓名，也支持直接从 Excel 复制“姓名、身份证号”两列。")
+    with st.container(border=True, key="quick_people"):
+        section_title("② 粘贴学员信息")
+        st.markdown(
+            '<p class="field-label">学员信息 '
+            '<span class="field-hint">每行一个姓名，或从 Excel 直接复制“姓名、身份证号”两列</span></p>',
+            unsafe_allow_html=True,
+        )
         raw_people = st.text_area(
             "学员信息",
             height=180,
             placeholder=(
-                "仅姓名：\n张三\n李四\n\n"
-                "或从 Excel 复制两列后直接粘贴"
+                "张三\n李四\n王五\n\n"
+                "也可以从 Excel 复制两列后直接粘贴"
             ),
             label_visibility="collapsed",
             key="quick_people_input",
@@ -503,15 +507,21 @@ def quick_records(standard_presets):
 
         id_count = sum(bool(person["身份证号"]) for person in people)
         if people:
-            count_column, clear_people_column = st.columns([4, 1])
+            count_column, clear_people_column = st.columns(
+                [4, 1], vertical_alignment="center"
+            )
             with count_column:
-                st.success(
-                    f"已识别 {len(people)} 人，其中 {id_count} 人包含身份证号。"
+                st.markdown(
+                    '<div class="status-line">'
+                    f"已识别 {len(people)} 人，其中 {id_count} 人包含身份证号"
+                    "</div>",
+                    unsafe_allow_html=True,
                 )
             with clear_people_column:
                 st.button(
                     "清空人员",
                     key="clear_quick_people",
+                    type="tertiary",
                     on_click=clear_people_input,
                     width="stretch",
                 )
@@ -531,20 +541,28 @@ def quick_records(standard_presets):
             )
             if len(people) > len(preview_people):
                 st.caption(f"当前仅预览前 10 人，其余 {len(people) - 10} 人已识别。")
-        else:
-            st.caption("粘贴后会在这里显示人数和脱敏预览。")
 
-        st.caption("🔒 身份证号仅用于本次证书生成，应用未配置数据库存储。")
+        st.caption("身份证号仅用于本次生成，中间 8 位自动隐藏，应用不保存任何数据。")
 
-        with st.expander("更多：自动生成证书编号"):
-            number_prefix = st.text_input(
-                "证书编号前缀",
-                placeholder="例如：T-2026-（不填写则证书编号留空）",
-            )
-            number_start = st.number_input("起始序号", min_value=0, value=1, step=1)
-            number_digits = st.number_input(
-                "序号位数", min_value=1, max_value=8, value=3, step=1
-            )
+        with st.expander("自动生成证书编号（可选）"):
+            prefix_column, start_column, digits_column = st.columns([2, 1, 1])
+            with prefix_column:
+                number_prefix = st.text_input(
+                    "编号前缀",
+                    placeholder="例如：T-2026-",
+                    help="不填写则证书编号留空。",
+                )
+            with start_column:
+                number_start = st.number_input(
+                    "起始序号", min_value=0, value=1, step=1
+                )
+            with digits_column:
+                number_digits = st.number_input(
+                    "序号位数", min_value=1, max_value=8, value=3, step=1
+                )
+            if number_prefix.strip():
+                sample = f"{number_prefix.strip()}{int(number_start):0{int(number_digits)}d}"
+                st.caption(f"第一位学员的编号将是：{sample}")
 
     records = []
     for index, person in enumerate(people):
@@ -576,175 +594,264 @@ st.set_page_config(page_title="证书智能制作工具", page_icon="🎓", layo
 st.markdown(
     """
     <style>
+    :root {
+        --ink: #17382f;
+        --ink-soft: #3d5c54;
+        --muted: #6f8580;
+        --brand: #176b57;
+        --brand-deep: #125647;
+        --brand-tint: #e6f3ee;
+        --line: #d9e6e1;
+        --line-strong: #c9dbd4;
+        --surface: #ffffff;
+        --surface-soft: #f3f8f6;
+    }
+    header[data-testid="stHeader"] {
+        background: transparent;
+    }
     .stApp {
-        background: linear-gradient(180deg, #f1f7f5 0, #f8faf9 240px, #f8faf9 100%);
+        background:
+            radial-gradient(1100px 380px at 50% -120px, #dcefe7 0%, rgba(248, 250, 249, 0) 72%),
+            #f8faf9;
     }
     .block-container {
-        max-width: 980px;
-        padding-top: 2.25rem;
-        padding-bottom: 4rem;
+        max-width: 960px;
+        padding-top: 3.4rem;
+        padding-bottom: 4.5rem;
     }
-    .hero-card {
-        padding: 1.55rem 1.7rem;
-        margin-bottom: 1.1rem;
-        border: 1px solid #dbe9e4;
-        border-radius: 18px;
-        background: linear-gradient(135deg, #ffffff 0%, #edf7f3 100%);
-        box-shadow: 0 10px 30px rgba(24, 88, 69, 0.07);
+    .hero {
+        padding: 0.4rem 0.2rem 1.5rem;
     }
     .hero-eyebrow {
-        color: #16705a;
-        font-size: 0.78rem;
+        color: var(--brand);
+        font-size: 0.74rem;
         font-weight: 700;
-        letter-spacing: 0.12em;
-        margin-bottom: 0.35rem;
+        letter-spacing: 0.14em;
+        margin-bottom: 0.45rem;
     }
-    .hero-card h1 {
-        color: #17382f;
-        font-size: 2rem;
-        line-height: 1.25;
-        margin: 0 0 0.45rem;
+    .hero h1 {
+        color: var(--ink);
+        font-size: 2.05rem;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.5rem;
+        padding: 0;
     }
-    .hero-card p {
-        color: #587068;
+    .hero p {
+        color: var(--muted);
+        font-size: 1rem;
         margin: 0;
     }
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        background: rgba(255, 255, 255, 0.96);
-        border-color: #dfe9e5;
-        border-radius: 16px;
-        box-shadow: 0 5px 18px rgba(36, 77, 65, 0.045);
+    /* Bordered containers that start with a panel title become cards. */
+    [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .panel-title) {
+        gap: 0.7rem;
+        padding: 1.35rem 1.5rem 1.45rem !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 16px !important;
+        background: var(--surface);
+        box-shadow: 0 1px 2px rgba(23, 56, 47, 0.04), 0 10px 28px rgba(23, 56, 47, 0.05);
+    }
+    .panel-title {
+        color: var(--ink);
+        font-size: 1.12rem;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+        margin: 0 0 0.35rem;
+    }
+    [data-testid="stMarkdownContainer"]:has(.panel-title),
+    [data-testid="stMarkdownContainer"]:has(.field-label) {
+        padding-bottom: 0;
+    }
+    .field-label {
+        color: var(--ink-soft);
+        font-size: 0.8rem;
+        font-weight: 650;
+        letter-spacing: 0.03em;
+        margin: 0 0 0.3rem;
+    }
+    .field-hint {
+        margin-left: 0.45rem;
+        color: var(--muted);
+        font-size: 0.74rem;
+        font-weight: 500;
+        letter-spacing: 0;
+    }
+    /* Unify every text-like control: white, hairline border, 44px tall. */
+    [data-testid="stTextInputRootElement"],
+    [data-testid="stNumberInputContainer"],
+    [data-testid="stDateInputField"],
+    [data-testid="stTextAreaRootElement"],
+    div[data-testid="stPopover"] > button {
+        background-color: var(--surface) !important;
+        border: 1px solid var(--line-strong) !important;
+        border-radius: 10px !important;
+        box-shadow: none !important;
+        transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+    [data-testid="stTextInputRootElement"],
+    [data-testid="stNumberInputContainer"],
+    [data-testid="stDateInputField"],
+    div[data-testid="stPopover"] > button {
+        min-height: 2.75rem !important;
+    }
+    [data-testid="stTextInputRootElement"]:hover,
+    [data-testid="stNumberInputContainer"]:hover,
+    [data-testid="stDateInputField"]:hover,
+    [data-testid="stTextAreaRootElement"]:hover,
+    div[data-testid="stPopover"] > button:hover {
+        border-color: var(--brand) !important;
+    }
+    [data-testid="stTextInputRootElement"]:focus-within,
+    [data-testid="stNumberInputContainer"]:focus-within,
+    [data-testid="stDateInputField"]:focus-within,
+    [data-testid="stTextAreaRootElement"]:focus-within {
+        border-color: var(--brand) !important;
+        box-shadow: 0 0 0 3px rgba(23, 107, 87, 0.14) !important;
+    }
+    div[data-testid="stPopover"] > button {
+        justify-content: space-between;
+        color: var(--ink) !important;
+        font-weight: 500;
+    }
+    div[data-testid="stPopover"] > button:hover {
+        background: #f7fbf9 !important;
+    }
+    [data-testid="stTextAreaRootElement"] textarea {
+        line-height: 1.6;
+    }
+    .setup-status {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin: 0.2rem 0 0;
+        padding: 0.85rem 1rem;
+        border-radius: 12px;
+        background: var(--surface-soft);
+    }
+    .setup-k {
+        color: var(--muted);
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.3rem;
+    }
+    .setup-v {
+        color: var(--ink);
+        font-size: 0.95rem;
+        font-weight: 650;
+        line-height: 1.4;
+    }
+    .setup-v.is-pending {
+        color: var(--muted);
+        font-weight: 500;
     }
     .chip-row {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.45rem;
-        margin: 0.1rem 0 0.5rem;
+        gap: 0.4rem;
     }
     .standard-chip {
         display: inline-flex;
         align-items: center;
-        padding: 0.34rem 0.65rem;
-        border: 1px solid #b9d8ce;
+        padding: 0.28rem 0.6rem;
         border-radius: 999px;
-        color: #176451;
-        background: #edf8f4;
+        color: var(--brand-deep);
+        background: var(--brand-tint);
         font-size: 0.82rem;
+        font-weight: 600;
         line-height: 1.25;
+    }
+    .status-line {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--brand-deep);
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    .status-line::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #1f8a6e;
+        flex: none;
     }
     .check-card {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.55rem;
-        padding: 0.85rem;
-        margin: 0.35rem 0 1rem;
+        gap: 0.6rem 1rem;
+        padding: 0.9rem 1rem;
+        margin: 0.15rem 0 0.85rem;
         border-radius: 12px;
-        background: #f5f8f7;
+        background: var(--surface-soft);
     }
     .check-row {
         display: flex;
         gap: 0.5rem;
         align-items: flex-start;
         font-size: 0.9rem;
+        line-height: 1.45;
     }
-    .check-ok { color: #176451; }
+    .check-row > span:first-child {
+        width: 1.1rem;
+        flex: none;
+        text-align: center;
+        font-weight: 700;
+    }
+    .check-ok { color: var(--brand-deep); }
     .check-pending { color: #8a6741; }
-    .panel-title {
-        color: #17382f;
-        font-size: 1.15rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        margin: 0.1rem 0 0.85rem;
-    }
-    .field-label {
-        color: #3d5c54;
-        font-size: 0.8rem;
-        font-weight: 650;
-        letter-spacing: 0.04em;
-        margin: 0 0 0.35rem;
-    }
-    .field-hint {
-        margin-left: 0.45rem;
-        color: #7b8c86;
-        font-size: 0.72rem;
-        font-weight: 500;
-        letter-spacing: 0;
-    }
-    .setup-status {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.8rem;
-        margin: 0.15rem 0 0.55rem;
-        padding: 0.8rem 0.95rem;
-        border: 1px solid #e1ece8;
-        border-radius: 12px;
-        background: #f4f8f6;
-    }
-    .setup-k {
-        color: #5d746c;
-        font-size: 0.7rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        margin-bottom: 0.18rem;
-    }
-    .setup-v {
-        color: #17382f;
-        font-size: 0.92rem;
-        font-weight: 650;
-        line-height: 1.4;
-    }
-    .setup-v.is-pending {
-        color: #7b8c86;
-        font-weight: 500;
-    }
-    .st-key-quick_setup [data-testid="stVerticalBlock"] {
-        gap: 0.55rem;
-    }
-    .st-key-quick_setup [data-testid="stMarkdownContainer"]:has(.field-label) {
-        padding-bottom: 0;
-    }
-    .st-key-quick_setup div[data-testid="stPopover"] button {
-        min-height: 2.8rem;
-        justify-content: space-between;
-        background: #ffffff !important;
-        border: 1px solid #d3e2dc !important;
-        color: #17382f !important;
-        font-weight: 500;
-        box-shadow: none !important;
-    }
-    .st-key-quick_setup div[data-testid="stPopover"] button:hover {
-        border-color: #176b57 !important;
-        background: #f7fbf9 !important;
-    }
-    .st-key-quick_setup [data-testid="stDateInputField"],
-    .st-key-quick_setup [data-testid="stTextInputRootElement"] {
-        min-height: 2.8rem !important;
-        background-color: #ffffff !important;
-        border: 1px solid #d3e2dc !important;
-        border-radius: 8px !important;
-    }
-    .st-key-quick_setup [data-testid="stDateInputField"]:hover,
-    .st-key-quick_setup [data-testid="stTextInputRootElement"]:hover {
-        border-color: #176b57 !important;
-    }
     div[data-testid="stButton"] button[kind="primary"] {
-        min-height: 3.15rem;
+        min-height: 3.1rem;
         font-size: 1rem;
         font-weight: 700;
         border-radius: 12px;
+        box-shadow: 0 6px 18px rgba(23, 107, 87, 0.18);
+    }
+    div[data-testid="stButton"] button[kind="primary"]:disabled {
+        background: var(--surface-soft);
+        border-color: var(--line);
+        color: var(--muted);
+        box-shadow: none;
+    }
+    div[data-testid="stButton"] button[kind="tertiary"] {
+        color: var(--muted);
+        padding-left: 0.2rem;
+        padding-right: 0.2rem;
+    }
+    div[data-testid="stButton"] button[kind="tertiary"]:hover {
+        color: #a33e3e;
+        background: transparent;
+    }
+    [data-testid="stExpander"] details {
+        border-color: var(--line) !important;
+        border-radius: 12px !important;
+    }
+    [data-testid="stExpander"] summary {
+        color: var(--ink-soft);
+        font-weight: 600;
+    }
+    [data-testid="stFileUploaderDropzone"] {
+        border: 1px dashed var(--line-strong) !important;
+        background: var(--surface-soft) !important;
+        border-radius: 12px !important;
+    }
+    div[data-testid="stDownloadButton"] button {
+        min-height: 2.9rem;
+        border-radius: 12px;
+        font-weight: 600;
     }
     @media (max-width: 640px) {
-        .block-container { padding-top: 1rem; }
-        .hero-card { padding: 1.2rem; }
-        .hero-card h1 { font-size: 1.55rem; }
-        .check-card { grid-template-columns: 1fr; }
+        .block-container { padding-top: 2.4rem; }
+        .hero h1 { font-size: 1.6rem; }
+        .check-card,
         .setup-status { grid-template-columns: 1fr; }
     }
     </style>
-    <div class="hero-card">
+    <div class="hero">
         <div class="hero-eyebrow">CERTIFICATE GENERATOR</div>
-        <h1>🎓 内审员证书智能制作工具</h1>
-        <p>选择标准和培训日期，粘贴学员信息，即可一次生成全部证书。</p>
+        <h1>内审员证书智能制作工具</h1>
+        <p>选择标准和培训日期，粘贴学员信息，一次生成全部证书。</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -755,11 +862,14 @@ data_to_process = []
 inputs_valid = False
 quick_summary = None
 
-mode = st.radio(
-    "选择录入方式",
-    ["快速生成", "完整信息录入"],
-    horizontal=True,
-    help="大多数场景使用快速生成；每名学员信息不同时使用完整信息录入。",
+mode = (
+    st.segmented_control(
+        "录入方式",
+        ["快速生成", "完整信息录入"],
+        default="快速生成",
+        help="大多数场景使用快速生成；每名学员信息不同时使用完整信息录入。",
+    )
+    or "快速生成"
 )
 
 if mode == "快速生成":
@@ -770,12 +880,16 @@ if mode == "快速生成":
         and bool(data_to_process)
     )
 else:
-    with st.container(border=True):
-        st.markdown("### ① 录入完整证书信息")
-        full_mode = st.radio(
-            "完整信息录入方式",
-            ["Excel 文件上传", "网页表格填写（支持粘贴）"],
-            horizontal=True,
+    with st.container(border=True, key="full_entry"):
+        section_title("① 录入完整证书信息")
+        full_mode = (
+            st.segmented_control(
+                "完整信息录入方式",
+                ["Excel 文件上传", "网页表格填写（支持粘贴）"],
+                default="Excel 文件上传",
+                label_visibility="collapsed",
+            )
+            or "Excel 文件上传"
         )
         if full_mode == "Excel 文件上传":
             data_to_process = records_from_upload()
@@ -783,20 +897,14 @@ else:
             data_to_process = records_from_editor(standard_presets)
     inputs_valid = bool(data_to_process)
 
-with st.container(border=True):
+with st.container(border=True, key="generate_panel"):
     final_step = "③" if mode == "快速生成" else "②"
-    st.markdown(f"### {final_step} 确认并生成")
+    section_title(f"{final_step} 确认并生成")
 
     if os.path.exists(DEFAULT_TEMPLATE):
         template_source = DEFAULT_TEMPLATE
         template_label = "内置模板：内审员证书.docx"
-        st.success("✓ 已启用内置证书模板")
-        with st.expander("更换为其他 Word 模板"):
-            uploaded_template = st.file_uploader(
-                "上传自定义 Word 模板",
-                type=["docx"],
-                key="custom_word_template",
-            )
+        uploaded_template = st.session_state.get("custom_word_template")
         if uploaded_template:
             template_source = uploaded_template
             template_label = f"自定义模板：{uploaded_template.name}"
@@ -849,6 +957,15 @@ with st.container(border=True):
         ]
     render_checklist(checklist)
 
+    if os.path.exists(DEFAULT_TEMPLATE):
+        with st.expander("更换为其他 Word 模板"):
+            st.file_uploader(
+                "上传自定义 Word 模板",
+                type=["docx"],
+                key="custom_word_template",
+                help="模板中可使用 {{ number }}、{{ name }}、{{ id_card }}、{{ date }}、{{ standards }} 变量。",
+            )
+
     can_generate = template_ready and inputs_valid
     button_label = (
         f"🚀 开始生成 {len(data_to_process)} 份证书"
@@ -876,7 +993,7 @@ with st.container(border=True):
                 st.error("没有找到可生成证书的有效姓名。")
             else:
                 st.session_state["generation_result"] = result
-                st.balloons()
+                st.toast(f"已生成 {result['count']} 份证书", icon="✅")
         except Exception as error:
             st.error(f"制作失败：{error}")
 
@@ -886,9 +1003,12 @@ with st.container(border=True):
 
 result = st.session_state.get("generation_result")
 if result:
-    with st.container(border=True):
-        st.markdown("### ✅ 证书生成完成")
-        st.success(f"共生成 {result['count']} 份证书，请选择需要的下载方式。")
+    with st.container(border=True, key="result_panel"):
+        section_title("证书生成完成")
+        st.markdown(
+            f'<div class="status-line">共生成 {result["count"]} 份证书，选择需要的下载方式</div>',
+            unsafe_allow_html=True,
+        )
         download_left, download_right = st.columns(2)
         with download_left:
             st.download_button(
