@@ -76,15 +76,57 @@ def clean_value(value):
 
 
 def mask_id_card(id_str):
-    """Mask the middle eight digits of an 18-character mainland ID number."""
+    """Mask the birth-date eight digits of an 18-character mainland ID number."""
     id_str = clean_value(id_str)
-    if len(id_str) == 18:
+    if re.fullmatch(r"\d{17}[\dXx]", id_str):
         return f"{id_str[:6]}********{id_str[14:]}"
     return id_str
 
 
+def _clean_pasted_name(name):
+    name = re.sub(r"(?:姓名|名字|身份证号码?|证件号码?)[：:]?", "", name or "")
+    return re.sub(r"^[\s,，;；|/\\'\"-]+|[\s,，;；|/\\'\"-]+$", "", name)
+
+
+def _normalize_id_card(id_card):
+    id_card = re.sub(r"\s+", "", id_card or "")
+    id_card = id_card.replace("（", "(").replace("）", ")")
+    return id_card.upper()
+
+
+# Mainland 18-digit (YYYYMMDD in the middle) and current Hong Kong ID.
+ID_PATTERNS = (
+    r"(?<!\d)(\d{17}[\dXx])(?!\d)",
+    r"(?<![A-Za-z0-9])([A-Za-z]{1,2}\s*\d{6}\s*[（(]\s*[\dAa]\s*[）)])",
+    r"(?<![A-Za-z0-9])([A-Za-z]{1,2}\s*\d{6}[\dAa])(?!\d)",
+)
+
+
+def _find_id_match(line):
+    """Find a mainland 18-digit ID or a Hong Kong ID number in pasted text."""
+    for pattern in ID_PATTERNS:
+        match = re.search(pattern, line)
+        if match:
+            return match
+    return None
+
+
+def _add_or_update_person(people, seen_names, name, id_card):
+    if name:
+        if name not in seen_names:
+            people.append({"姓名": name, "身份证号": id_card})
+            seen_names.add(name)
+        elif id_card:
+            for person in people:
+                if person["姓名"] == name and not person["身份证号"]:
+                    person["身份证号"] = id_card
+                    break
+    elif id_card and people and not people[-1]["身份证号"]:
+        people[-1]["身份证号"] = id_card
+
+
 def parse_people(raw_people):
-    """Parse names and optional 18-character ID numbers from pasted text."""
+    """Parse names and optional ID numbers from pasted text."""
     people = []
     seen_names = set()
 
@@ -98,24 +140,11 @@ def parse_people(raw_people):
         ):
             continue
 
-        id_match = re.search(r"(?<!\d)(\d{17}[\dXx])(?!\d)", line)
+        id_match = _find_id_match(line)
         if id_match:
-            id_card = id_match.group(1).upper()
-            name = line[: id_match.start()] + line[id_match.end() :]
-            name = re.sub(r"(?:姓名|名字|身份证号码?|证件号码?)[：:]?", "", name)
-            name = re.sub(r"^[\s,，;；|/\\'\"-]+|[\s,，;；|/\\'\"-]+$", "", name)
-
-            if name:
-                if name not in seen_names:
-                    people.append({"姓名": name, "身份证号": id_card})
-                    seen_names.add(name)
-                else:
-                    for person in people:
-                        if person["姓名"] == name and not person["身份证号"]:
-                            person["身份证号"] = id_card
-                            break
-            elif people and not people[-1]["身份证号"]:
-                people[-1]["身份证号"] = id_card
+            id_card = _normalize_id_card(id_match.group(1))
+            name = _clean_pasted_name(line[: id_match.start()] + line[id_match.end() :])
+            _add_or_update_person(people, seen_names, name, id_card)
             continue
 
         line = re.sub(r"^(?:姓名|名字)[：:]\s*", "", line)
@@ -502,14 +531,14 @@ def quick_records(standard_presets):
         section_title("② 粘贴学员信息")
         st.markdown(
             '<p class="field-label">学员信息 '
-            '<span class="field-hint">姓名和身份证号可自动分离，也支持粘贴 Excel 两列</span></p>',
+            '<span class="field-hint">支持内地 18 位身份证、香港身份证，也可粘贴 Excel 两列</span></p>',
             unsafe_allow_html=True,
         )
         raw_people = st.text_area(
             "学员信息",
             height=180,
             placeholder=(
-                "单人可直接粘贴：\n张三 440683199001010001\n\n"
+                "单人可直接粘贴：\n张三 440683199001010001\n李四 A123456(7)\n\n"
                 "也支持每行一个姓名，或从 Excel 复制两列"
             ),
             label_visibility="collapsed",
@@ -554,7 +583,7 @@ def quick_records(standard_presets):
             if len(people) > len(preview_people):
                 st.caption(f"当前仅预览前 10 人，其余 {len(people) - 10} 人已识别。")
 
-        st.caption("身份证号仅用于本次生成，中间 8 位自动隐藏，应用不保存任何数据。")
+        st.caption("身份证号仅用于本次生成，内地 18 位中间 8 位（出生年月日）自动隐藏，应用不保存任何数据。")
 
         with st.expander("自动生成证书编号（可选）"):
             prefix_column, start_column, digits_column = st.columns([2, 1, 1])
