@@ -13,7 +13,7 @@ from docxtpl import DocxTemplate
 from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
 
-from pdf_export import docx_bytes_to_pdf, merge_pdfs
+from pdf_export import PdfConversionError, docx_bytes_to_pdf
 
 
 DEFAULT_TEMPLATE = "内审员证书.docx"
@@ -218,7 +218,6 @@ def generate_documents(template_bytes, records, progress_callback=None):
     master_doc = None
     composer = None
     valid_count = 0
-    pdf_pages = []
     zip_buffer = io.BytesIO()
 
     with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -245,12 +244,6 @@ def generate_documents(template_bytes, records, progress_callback=None):
             stem = f"{valid_count:03d}_{safe_filename(name)}"
 
             archive.writestr(f"{stem}.docx", certificate_bytes)
-            try:
-                pdf_bytes = docx_bytes_to_pdf(certificate_bytes)
-                pdf_pages.append(pdf_bytes)
-                archive.writestr(f"{stem}.pdf", pdf_bytes)
-            except Exception:
-                pass
 
             current_doc = Document(io.BytesIO(certificate_bytes))
             if master_doc is None:
@@ -268,10 +261,19 @@ def generate_documents(template_bytes, records, progress_callback=None):
 
     merged_buffer = io.BytesIO()
     composer.save(merged_buffer)
+    merged_bytes = merged_buffer.getvalue()
+    pdf_error = None
+    try:
+        pdf_bytes = docx_bytes_to_pdf(merged_bytes)
+    except PdfConversionError as error:
+        pdf_bytes = None
+        pdf_error = str(error)
+
     return {
         "count": valid_count,
-        "merged": merged_buffer.getvalue(),
-        "pdf": merge_pdfs(pdf_pages) if pdf_pages else None,
+        "merged": merged_bytes,
+        "pdf": pdf_bytes,
+        "pdf_error": pdf_error,
         "zip": zip_buffer.getvalue(),
     }
 
@@ -1037,7 +1039,7 @@ if result:
                 )
             else:
                 st.button("下载合并 PDF", disabled=True, width="stretch")
-                st.caption("本次未能生成 PDF，请改用 Word。")
+                st.caption(result.get("pdf_error") or "本次未能生成 PDF，请改用 Word。")
         with download_zip:
             st.download_button(
                 "下载单独证书 ZIP",
@@ -1045,6 +1047,6 @@ if result:
                 file_name="单独证书.zip",
                 mime="application/zip",
                 width="stretch",
-                help="ZIP 内同时包含每人的 Word 和 PDF。",
+                help="ZIP 内包含每人的 Word 证书。",
             )
 

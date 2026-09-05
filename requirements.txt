@@ -4,6 +4,4 @@ docxtpl
 python-docx
 docxcompose
 openpyxl
-reportlab
-pypdf
 
