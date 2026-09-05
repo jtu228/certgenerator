@@ -84,7 +84,7 @@ def mask_id_card(id_str):
 
 
 def parse_people(raw_people):
-    """Parse names or Excel-style name/ID rows and de-duplicate by name."""
+    """Parse names and optional 18-character ID numbers from pasted text."""
     people = []
     seen_names = set()
 
@@ -93,23 +93,38 @@ def parse_people(raw_people):
         if not line:
             continue
 
-        tab_values = [value.strip() for value in line.split("\t")]
-        if len(tab_values) >= 2:
-            candidates = [(tab_values[0], tab_values[1])]
-        else:
-            candidates = [
-                (value.strip(), "")
-                for value in re.split(r"[,，;；]+", line)
-                if value.strip()
-            ]
+        if re.fullmatch(
+            r"(?:姓名|名字)\s*[\t,，;；]+\s*身份证号码?", line
+        ):
+            continue
 
-        for name, id_card in candidates:
-            if name in {"姓名", "名字"} and (
-                not id_card or id_card in {"身份证号", "身份证号码"}
-            ):
-                continue
+        id_match = re.search(r"(?<!\d)(\d{17}[\dXx])(?!\d)", line)
+        if id_match:
+            id_card = id_match.group(1).upper()
+            name = line[: id_match.start()] + line[id_match.end() :]
+            name = re.sub(r"(?:姓名|名字|身份证号码?|证件号码?)[：:]?", "", name)
+            name = re.sub(r"^[\s,，;；|/\\'\"-]+|[\s,，;；|/\\'\"-]+$", "", name)
+
+            if name:
+                if name not in seen_names:
+                    people.append({"姓名": name, "身份证号": id_card})
+                    seen_names.add(name)
+                else:
+                    for person in people:
+                        if person["姓名"] == name and not person["身份证号"]:
+                            person["身份证号"] = id_card
+                            break
+            elif people and not people[-1]["身份证号"]:
+                people[-1]["身份证号"] = id_card
+            continue
+
+        line = re.sub(r"^(?:姓名|名字)[：:]\s*", "", line)
+        if line in {"姓名", "名字", "身份证号", "身份证号码"}:
+            continue
+        for name in re.split(r"[\t,，;；]+", line):
+            name = name.strip()
             if name and name not in seen_names:
-                people.append({"姓名": name, "身份证号": id_card})
+                people.append({"姓名": name, "身份证号": ""})
                 seen_names.add(name)
 
     return people
@@ -487,15 +502,15 @@ def quick_records(standard_presets):
         section_title("② 粘贴学员信息")
         st.markdown(
             '<p class="field-label">学员信息 '
-            '<span class="field-hint">每行一个姓名，或从 Excel 直接复制“姓名、身份证号”两列</span></p>',
+            '<span class="field-hint">姓名和身份证号可自动分离，也支持粘贴 Excel 两列</span></p>',
             unsafe_allow_html=True,
         )
         raw_people = st.text_area(
             "学员信息",
             height=180,
             placeholder=(
-                "张三\n李四\n王五\n\n"
-                "也可以从 Excel 复制两列后直接粘贴"
+                "单人可直接粘贴：\n张三 440683199001010001\n\n"
+                "也支持每行一个姓名，或从 Excel 复制两列"
             ),
             label_visibility="collapsed",
             key="quick_people_input",
