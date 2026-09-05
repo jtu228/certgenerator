@@ -13,21 +13,23 @@ from reportlab.pdfgen import canvas
 
 WINDOWS_FONTS = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
 
+# Prefer Unicode TrueType collections that Chromium/Edge can actually render.
+# Old GB fonts such as STKaiti/STSong often become black squares in the browser PDF viewer.
 FONT_FILES = {
-    "华文楷体": WINDOWS_FONTS / "STKAITI.TTF",
-    "楷体": WINDOWS_FONTS / "simkai.ttf",
-    "楷体_GB2312": WINDOWS_FONTS / "simkai.ttf",
-    "宋体": WINDOWS_FONTS / "STSONG.TTF",
-    "新宋体": WINDOWS_FONTS / "simsun.ttc",
-    "黑体": WINDOWS_FONTS / "simhei.ttf",
-    "华文宋体": WINDOWS_FONTS / "STSONG.TTF",
     "微软雅黑": WINDOWS_FONTS / "msyh.ttc",
+    "黑体": WINDOWS_FONTS / "simhei.ttf",
+    "华文楷体": WINDOWS_FONTS / "msyh.ttc",
+    "楷体": WINDOWS_FONTS / "msyh.ttc",
+    "楷体_GB2312": WINDOWS_FONTS / "msyh.ttc",
+    "宋体": WINDOWS_FONTS / "msyh.ttc",
+    "新宋体": WINDOWS_FONTS / "msyh.ttc",
+    "华文宋体": WINDOWS_FONTS / "msyh.ttc",
 }
 
 FALLBACK_FONTS = [
-    WINDOWS_FONTS / "STKAITI.TTF",
-    WINDOWS_FONTS / "simkai.ttf",
     WINDOWS_FONTS / "msyh.ttc",
+    WINDOWS_FONTS / "msyhbd.ttc",
+    WINDOWS_FONTS / "simhei.ttf",
     WINDOWS_FONTS / "simsun.ttc",
 ]
 
@@ -235,7 +237,7 @@ def _draw_line(pdf, line, left, baseline, content_width, indent, align):
     else:
         x = left + indent
 
-    for item in line:
+    for item in _coalesce_line(line):
         pdf.setFont(item["font"], item["size"])
         pdf.setFillGray(0)
         pdf.drawString(x, baseline, item["text"])
@@ -244,6 +246,22 @@ def _draw_line(pdf, line, left, baseline, content_width, indent, align):
             pdf.setLineWidth(0.7)
             pdf.line(x, baseline - 1.2, x + item["width"], baseline - 1.2)
         x += item["width"]
+
+
+def _coalesce_line(line):
+    merged = []
+    for item in line:
+        if (
+            merged
+            and merged[-1]["font"] == item["font"]
+            and merged[-1]["size"] == item["size"]
+            and merged[-1]["underline"] == item["underline"]
+        ):
+            merged[-1]["text"] += item["text"]
+            merged[-1]["width"] += item["width"]
+        else:
+            merged.append(dict(item))
+    return merged
 
 
 def merge_pdfs(pdf_pages):

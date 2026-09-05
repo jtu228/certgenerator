@@ -129,16 +129,16 @@ def format_training_date(start_date, end_date=None):
     if start_date.year == end_date.year and start_date.month == end_date.month:
         return (
             f"{start_date.year}年{start_date.month}月"
-            f"{start_date.day}—{end_date.day}日"
+            f"{start_date.day}日至{end_date.day}日"
         )
     if start_date.year == end_date.year:
         return (
-            f"{start_date.year}年{start_date.month}月{start_date.day}日—"
-            f"{end_date.month}月{end_date.day}日"
+            f"{start_date.year}年{start_date.month}月{start_date.day}日"
+            f"至{end_date.month}月{end_date.day}日"
         )
     return (
-        f"{start_date.year}年{start_date.month}月{start_date.day}日—"
-        f"{end_date.year}年{end_date.month}月{end_date.day}日"
+        f"{start_date.year}年{start_date.month}月{start_date.day}日"
+        f"至{end_date.year}年{end_date.month}月{end_date.day}日"
     )
 
 
@@ -281,7 +281,7 @@ def make_excel_template():
         "证书编号": ["T-2026-001（示例）"],
         "姓名": ["张三（示例）"],
         "身份证号": ["440683199001010001"],
-        "培训日期": ["2026年9月1—3日"],
+        "培训日期": ["2026年9月1日至3日"],
         "标准号": ["ISO 9001:2015、ISO 14001:2015"],
     }
     example_df = pd.DataFrame(example_data)
