@@ -13,6 +13,8 @@ from docxtpl import DocxTemplate
 from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
 
+from pdf_export import docx_bytes_to_pdf, merge_pdfs
+
 
 DEFAULT_TEMPLATE = "内审员证书.docx"
 STANDARDS_FILE = "standards.json"
@@ -212,10 +214,11 @@ def read_template_bytes(template_source):
 
 
 def generate_documents(template_bytes, records, progress_callback=None):
-    """Render one certificate per valid row and return merged DOCX + ZIP."""
+    """Render one certificate per valid row and return merged DOCX, PDF, ZIP."""
     master_doc = None
     composer = None
     valid_count = 0
+    pdf_pages = []
     zip_buffer = io.BytesIO()
 
     with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -239,11 +242,15 @@ def generate_documents(template_bytes, records, progress_callback=None):
             doc.save(certificate_buffer)
             certificate_bytes = certificate_buffer.getvalue()
             valid_count += 1
+            stem = f"{valid_count:03d}_{safe_filename(name)}"
 
-            archive.writestr(
-                f"{valid_count:03d}_{safe_filename(name)}.docx",
-                certificate_bytes,
-            )
+            archive.writestr(f"{stem}.docx", certificate_bytes)
+            try:
+                pdf_bytes = docx_bytes_to_pdf(certificate_bytes)
+                pdf_pages.append(pdf_bytes)
+                archive.writestr(f"{stem}.pdf", pdf_bytes)
+            except Exception:
+                pass
 
             current_doc = Document(io.BytesIO(certificate_bytes))
             if master_doc is None:
@@ -264,6 +271,7 @@ def generate_documents(template_bytes, records, progress_callback=None):
     return {
         "count": valid_count,
         "merged": merged_buffer.getvalue(),
+        "pdf": merge_pdfs(pdf_pages) if pdf_pages else None,
         "zip": zip_buffer.getvalue(),
     }
 
@@ -1009,21 +1017,34 @@ if result:
             f'<div class="status-line">共生成 {result["count"]} 份证书，选择需要的下载方式</div>',
             unsafe_allow_html=True,
         )
-        download_left, download_right = st.columns(2)
-        with download_left:
+        download_word, download_pdf, download_zip = st.columns(3)
+        with download_word:
             st.download_button(
-                "📄 下载合并 Word",
+                "下载合并 Word",
                 data=result["merged"],
                 file_name="证书汇总导出.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 width="stretch",
             )
-        with download_right:
+        with download_pdf:
+            if result.get("pdf"):
+                st.download_button(
+                    "下载合并 PDF",
+                    data=result["pdf"],
+                    file_name="证书汇总导出.pdf",
+                    mime="application/pdf",
+                    width="stretch",
+                )
+            else:
+                st.button("下载合并 PDF", disabled=True, width="stretch")
+                st.caption("本次未能生成 PDF，请改用 Word。")
+        with download_zip:
             st.download_button(
-                "🗂️ 下载单独证书 ZIP",
+                "下载单独证书 ZIP",
                 data=result["zip"],
                 file_name="单独证书.zip",
                 mime="application/zip",
                 width="stretch",
+                help="ZIP 内同时包含每人的 Word 和 PDF。",
             )
 
