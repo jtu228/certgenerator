@@ -48,7 +48,3 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-PDF 导出通过 LibreOffice 将生成后的 Word 文件直接转换而来。部署环境会根据
-`packages.txt` 自动安装 LibreOffice；本地使用 PDF 导出时也需安装 LibreOffice，
-并确保 `soffice` 或 `libreoffice` 命令可用。
-

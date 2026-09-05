@@ -13,9 +13,6 @@ from docxtpl import DocxTemplate
 from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
 
-from pdf_export import PdfConversionError, docx_bytes_to_pdf
-
-
 DEFAULT_TEMPLATE = "内审员证书.docx"
 STANDARDS_FILE = "standards.json"
 
@@ -214,7 +211,7 @@ def read_template_bytes(template_source):
 
 
 def generate_documents(template_bytes, records, progress_callback=None):
-    """Render one certificate per valid row and return merged DOCX, PDF, ZIP."""
+    """Render one certificate per valid row and return merged DOCX + ZIP."""
     master_doc = None
     composer = None
     valid_count = 0
@@ -261,19 +258,9 @@ def generate_documents(template_bytes, records, progress_callback=None):
 
     merged_buffer = io.BytesIO()
     composer.save(merged_buffer)
-    merged_bytes = merged_buffer.getvalue()
-    pdf_error = None
-    try:
-        pdf_bytes = docx_bytes_to_pdf(merged_bytes)
-    except PdfConversionError as error:
-        pdf_bytes = None
-        pdf_error = str(error)
-
     return {
         "count": valid_count,
-        "merged": merged_bytes,
-        "pdf": pdf_bytes,
-        "pdf_error": pdf_error,
+        "merged": merged_buffer.getvalue(),
         "zip": zip_buffer.getvalue(),
     }
 
@@ -1019,7 +1006,7 @@ if result:
             f'<div class="status-line">共生成 {result["count"]} 份证书，选择需要的下载方式</div>',
             unsafe_allow_html=True,
         )
-        download_word, download_pdf, download_zip = st.columns(3)
+        download_word, download_zip = st.columns(2)
         with download_word:
             st.download_button(
                 "下载合并 Word",
@@ -1028,18 +1015,6 @@ if result:
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 width="stretch",
             )
-        with download_pdf:
-            if result.get("pdf"):
-                st.download_button(
-                    "下载合并 PDF",
-                    data=result["pdf"],
-                    file_name="证书汇总导出.pdf",
-                    mime="application/pdf",
-                    width="stretch",
-                )
-            else:
-                st.button("下载合并 PDF", disabled=True, width="stretch")
-                st.caption(result.get("pdf_error") or "本次未能生成 PDF，请改用 Word。")
         with download_zip:
             st.download_button(
                 "下载单独证书 ZIP",
