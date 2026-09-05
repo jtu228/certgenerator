@@ -12,21 +12,25 @@ from reportlab.pdfgen import canvas
 
 
 WINDOWS_FONTS = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+BUNDLED_FONT = (
+    Path(__file__).resolve().parent / "assets" / "fonts" / "NotoSansSC-Regular.ttf"
+)
 
-# Prefer Unicode TrueType collections that Chromium/Edge can actually render.
-# Old GB fonts such as STKaiti/STSong often become black squares in the browser PDF viewer.
+# Always use the bundled Unicode font. Hosted Linux environments do not include
+# Windows fonts, and falling back to Times-Roman renders Chinese as black squares.
 FONT_FILES = {
-    "微软雅黑": WINDOWS_FONTS / "msyh.ttc",
-    "黑体": WINDOWS_FONTS / "simhei.ttf",
-    "华文楷体": WINDOWS_FONTS / "msyh.ttc",
-    "楷体": WINDOWS_FONTS / "msyh.ttc",
-    "楷体_GB2312": WINDOWS_FONTS / "msyh.ttc",
-    "宋体": WINDOWS_FONTS / "msyh.ttc",
-    "新宋体": WINDOWS_FONTS / "msyh.ttc",
-    "华文宋体": WINDOWS_FONTS / "msyh.ttc",
+    "微软雅黑": BUNDLED_FONT,
+    "黑体": BUNDLED_FONT,
+    "华文楷体": BUNDLED_FONT,
+    "楷体": BUNDLED_FONT,
+    "楷体_GB2312": BUNDLED_FONT,
+    "宋体": BUNDLED_FONT,
+    "新宋体": BUNDLED_FONT,
+    "华文宋体": BUNDLED_FONT,
 }
 
 FALLBACK_FONTS = [
+    BUNDLED_FONT,
     WINDOWS_FONTS / "msyh.ttc",
     WINDOWS_FONTS / "msyhbd.ttc",
     WINDOWS_FONTS / "simhei.ttf",
