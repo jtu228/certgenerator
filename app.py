@@ -371,16 +371,16 @@ def records_from_editor(standard_presets):
         num_rows="fixed",
         width="stretch",
         hide_index=True,
-        height=380,
+        height=520,
         column_config={
-            "序号": st.column_config.NumberColumn("序号", width=40, disabled=True),
-            "证书编号": st.column_config.TextColumn("证书编号", width="small"),
-            "姓名": st.column_config.TextColumn("姓名", width="small"),
-            "身份证号": st.column_config.TextColumn("身份证号", width="medium"),
-            "培训日期": st.column_config.TextColumn("培训日期", width="medium"),
+            "序号": st.column_config.NumberColumn("序号", width=56, disabled=True),
+            "证书编号": st.column_config.TextColumn("证书编号", width=140),
+            "姓名": st.column_config.TextColumn("姓名", width=120),
+            "身份证号": st.column_config.TextColumn("身份证号", width=200),
+            "培训日期": st.column_config.TextColumn("培训日期", width=180),
             "标准号": st.column_config.TextColumn(
                 "标准号",
-                width="large",
+                width=280,
                 help="可填写：" + "、".join(standard_presets.values()),
             ),
         },
@@ -395,23 +395,97 @@ def records_from_editor(standard_presets):
 
 
 def records_from_upload():
-    left_column, right_column = st.columns([2, 3])
-    with left_column:
+    hint_column, download_column = st.columns([3, 2], vertical_alignment="bottom")
+    with hint_column:
+        st.markdown(
+            '<p class="field-label">学员信息文件</p>'
+            '<p class="field-hint-block">先下载模板填写。系统会自动跳过标有“示例”的行。</p>',
+            unsafe_allow_html=True,
+        )
+    with download_column:
         st.download_button(
-            label="📥 下载标准模板",
+            label="下载标准模板",
             data=make_excel_template(),
             file_name="学员信息上传模板.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             width="stretch",
         )
-        st.caption("系统会自动跳过标有“示例”的行。")
 
-    with right_column:
-        uploaded_data = st.file_uploader(
-            "上传学员信息文件",
-            type=["xlsx", "csv"],
-            label_visibility="collapsed",
-        )
+    st.html(
+        """
+        <style>
+        .excel-drop-visual {
+            margin: 0;
+            padding: 1.15rem 1rem 0.35rem;
+            border: 1px dashed #c9dbd4;
+            border-bottom: 0;
+            border-radius: 16px 16px 0 0;
+            background: #f3f8f6;
+            text-align: center;
+            font-family: sans-serif;
+        }
+        .drop-copy {
+            color: #17382f;
+            font-size: 0.98rem;
+            font-weight: 700;
+            margin: 0.15rem 0;
+        }
+        .drop-sub {
+            color: #6f8580;
+            font-size: 0.82rem;
+            margin: 0 0 0.35rem;
+        }
+        .drop-gesture { display: block; margin: 0 auto 0.15rem; }
+        .drop-tray { fill: #fff; stroke: #176b57; stroke-width: 1.7; stroke-dasharray: 5 4; }
+        .drop-file rect { fill: #fff; stroke: #125647; stroke-width: 1.6; }
+        .drop-file line { stroke: #8aa39b; stroke-width: 1.5; stroke-linecap: round; }
+        .drop-hand { fill: #176b57; }
+        .drop-file, .drop-hand { transform-box: fill-box; transform-origin: center; }
+        .drop-file { animation: drop-file-move 2.5s ease-in-out infinite; }
+        .drop-hand { animation: drop-hand-move 2.5s ease-in-out infinite; }
+        @keyframes drop-file-move {
+            0%, 10% { transform: translate(0, 0); opacity: 0.45; }
+            48%, 64% { transform: translate(74px, 30px); opacity: 1; }
+            82% { transform: translate(74px, 36px); opacity: 0.12; }
+            100% { transform: translate(0, 0); opacity: 0.45; }
+        }
+        @keyframes drop-hand-move {
+            0%, 10% { transform: translate(-6px, -10px); }
+            48%, 64% { transform: translate(62px, 18px); }
+            82% { transform: translate(62px, 22px); opacity: 0.35; }
+            100% { transform: translate(-6px, -10px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .drop-file, .drop-hand { animation: none; }
+        }
+        </style>
+        <div class="excel-drop-visual" aria-hidden="true">
+            <svg class="drop-gesture" viewBox="0 0 180 108" width="168" height="100">
+                <rect class="drop-tray" x="78" y="40" width="86" height="54" rx="10"/>
+                <g class="drop-file">
+                    <rect x="16" y="10" width="34" height="44" rx="5"/>
+                    <line x1="23" y1="22" x2="43" y2="22"/>
+                    <line x1="23" y1="30" x2="40" y2="30"/>
+                    <line x1="23" y1="38" x2="37" y2="38"/>
+                </g>
+                <g class="drop-hand">
+                    <path d="M54 58c0-3.2 2.2-5.6 5-5.6s5 2.4 5 5.6v8.2c1.1-1.8 3-2.8 5.1-2.8 2.6 0 4.7 2 4.7 4.8v3.4c1-1.4 2.8-2.2 4.7-2.2 2.6 0 4.7 2.1 4.7 4.8V82c0 7.2-5.4 12-12.6 12H62c-6.4 0-12-4.4-12-11.2V58z"/>
+                    <circle cx="59" cy="46" r="6.5"/>
+                </g>
+            </svg>
+            <p class="drop-copy">把文件拖进下方虚线框</p>
+            <p class="drop-sub">支持 Excel（.xlsx）和 CSV，也可点击选择文件</p>
+        </div>
+        """
+        ,
+        height=220,
+    )
+    uploaded_data = st.file_uploader(
+        "上传学员信息文件",
+        type=["xlsx", "csv"],
+        label_visibility="collapsed",
+        key="full_excel_upload",
+    )
 
     if not uploaded_data:
         return []
@@ -728,7 +802,7 @@ st.markdown(
             #f8faf9;
     }
     .block-container {
-        max-width: 960px;
+        max-width: 1180px;
         padding-top: 3.4rem;
         padding-bottom: 4.5rem;
     }
@@ -944,10 +1018,100 @@ st.markdown(
         color: var(--ink-soft);
         font-weight: 600;
     }
+    .field-hint-block {
+        color: var(--muted);
+        font-size: 0.86rem;
+        line-height: 1.45;
+        margin: 0.15rem 0 0;
+    }
+    .excel-drop-visual {
+        margin-bottom: -0.85rem;
+        padding: 1.15rem 1rem 0.35rem;
+        border: 1px dashed var(--line-strong);
+        border-bottom: 0;
+        border-radius: 16px 16px 0 0;
+        background: var(--surface-soft);
+        text-align: center;
+    }
+    .drop-copy {
+        color: var(--ink);
+        font-size: 0.98rem;
+        font-weight: 700;
+        margin: 0.15rem 0 0.15rem;
+    }
+    .drop-sub {
+        color: var(--muted);
+        font-size: 0.82rem;
+        margin: 0 0 0.35rem;
+    }
+    .drop-gesture {
+        display: block;
+        margin: 0 auto 0.15rem;
+    }
+    .drop-tray {
+        fill: #ffffff;
+        stroke: var(--brand);
+        stroke-width: 1.7;
+        stroke-dasharray: 5 4;
+    }
+    .drop-file rect {
+        fill: #ffffff;
+        stroke: var(--brand-deep);
+        stroke-width: 1.6;
+    }
+    .drop-file line {
+        stroke: #8aa39b;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+    }
+    .drop-hand {
+        fill: var(--brand);
+    }
+    .drop-file,
+    .drop-hand {
+        transform-box: fill-box;
+        transform-origin: center;
+    }
+    .drop-file {
+        animation: drop-file-move 2.5s ease-in-out infinite;
+    }
+    .drop-hand {
+        animation: drop-hand-move 2.5s ease-in-out infinite;
+    }
+    @keyframes drop-file-move {
+        0%, 10% { transform: translate(0, 0); opacity: 0.45; }
+        48%, 64% { transform: translate(74px, 30px); opacity: 1; }
+        82% { transform: translate(74px, 36px); opacity: 0.12; }
+        100% { transform: translate(0, 0); opacity: 0.45; }
+    }
+    @keyframes drop-hand-move {
+        0%, 10% { transform: translate(-6px, -10px); }
+        48%, 64% { transform: translate(62px, 18px); }
+        82% { transform: translate(62px, 22px); opacity: 0.35; }
+        100% { transform: translate(-6px, -10px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .drop-file,
+        .drop-hand { animation: none; }
+    }
     [data-testid="stFileUploaderDropzone"] {
         border: 1px dashed var(--line-strong) !important;
         background: var(--surface-soft) !important;
         border-radius: 12px !important;
+    }
+    .st-key-full_excel_upload [data-testid="stFileUploaderDropzone"] {
+        min-height: 7.8rem;
+        border-top: 1px dashed var(--line) !important;
+        border-radius: 0 0 16px 16px !important;
+        padding: 1.15rem 1rem !important;
+    }
+    .st-key-full_excel_upload [data-testid="stFileUploaderDropzone"]:hover {
+        border-color: var(--brand) !important;
+        background: #f7fbf9 !important;
+    }
+    .st-key-full_entry [data-testid="stDataFrame"],
+    .st-key-full_entry [data-testid="stDataEditor"] {
+        width: 100%;
     }
     div[data-testid="stDownloadButton"] button {
         min-height: 2.9rem;
