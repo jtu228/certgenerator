@@ -395,7 +395,7 @@ def records_from_editor(standard_presets):
 
 
 def records_from_upload():
-    hint_column, download_column = st.columns([3, 2], vertical_alignment="bottom")
+    hint_column, download_column = st.columns([3.2, 1.5], vertical_alignment="center")
     with hint_column:
         st.markdown(
             '<p class="field-label">学员信息文件</p>'
@@ -411,78 +411,9 @@ def records_from_upload():
             width="stretch",
         )
 
-    st.html(
-        """
-        <style>
-        .excel-drop-visual {
-            margin: 0;
-            padding: 1.15rem 1rem 0.35rem;
-            border: 1px dashed #c9dbd4;
-            border-bottom: 0;
-            border-radius: 16px 16px 0 0;
-            background: #f3f8f6;
-            text-align: center;
-            font-family: sans-serif;
-        }
-        .drop-copy {
-            color: #17382f;
-            font-size: 0.98rem;
-            font-weight: 700;
-            margin: 0.15rem 0;
-        }
-        .drop-sub {
-            color: #6f8580;
-            font-size: 0.82rem;
-            margin: 0 0 0.35rem;
-        }
-        .drop-gesture { display: block; margin: 0 auto 0.15rem; }
-        .drop-tray { fill: #fff; stroke: #176b57; stroke-width: 1.7; stroke-dasharray: 5 4; }
-        .drop-file rect { fill: #fff; stroke: #125647; stroke-width: 1.6; }
-        .drop-file line { stroke: #8aa39b; stroke-width: 1.5; stroke-linecap: round; }
-        .drop-hand { fill: #176b57; }
-        .drop-file, .drop-hand { transform-box: fill-box; transform-origin: center; }
-        .drop-file { animation: drop-file-move 2.5s ease-in-out infinite; }
-        .drop-hand { animation: drop-hand-move 2.5s ease-in-out infinite; }
-        @keyframes drop-file-move {
-            0%, 10% { transform: translate(0, 0); opacity: 0.45; }
-            48%, 64% { transform: translate(74px, 30px); opacity: 1; }
-            82% { transform: translate(74px, 36px); opacity: 0.12; }
-            100% { transform: translate(0, 0); opacity: 0.45; }
-        }
-        @keyframes drop-hand-move {
-            0%, 10% { transform: translate(-6px, -10px); }
-            48%, 64% { transform: translate(62px, 18px); }
-            82% { transform: translate(62px, 22px); opacity: 0.35; }
-            100% { transform: translate(-6px, -10px); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            .drop-file, .drop-hand { animation: none; }
-        }
-        </style>
-        <div class="excel-drop-visual" aria-hidden="true">
-            <svg class="drop-gesture" viewBox="0 0 180 108" width="168" height="100">
-                <rect class="drop-tray" x="78" y="40" width="86" height="54" rx="10"/>
-                <g class="drop-file">
-                    <rect x="16" y="10" width="34" height="44" rx="5"/>
-                    <line x1="23" y1="22" x2="43" y2="22"/>
-                    <line x1="23" y1="30" x2="40" y2="30"/>
-                    <line x1="23" y1="38" x2="37" y2="38"/>
-                </g>
-                <g class="drop-hand">
-                    <path d="M54 58c0-3.2 2.2-5.6 5-5.6s5 2.4 5 5.6v8.2c1.1-1.8 3-2.8 5.1-2.8 2.6 0 4.7 2 4.7 4.8v3.4c1-1.4 2.8-2.2 4.7-2.2 2.6 0 4.7 2.1 4.7 4.8V82c0 7.2-5.4 12-12.6 12H62c-6.4 0-12-4.4-12-11.2V58z"/>
-                    <circle cx="59" cy="46" r="6.5"/>
-                </g>
-            </svg>
-            <p class="drop-copy">把文件拖进下方虚线框</p>
-            <p class="drop-sub">支持 Excel（.xlsx）和 CSV，也可点击选择文件</p>
-        </div>
-        """,
-        width="stretch",
-    )
     uploaded_data = st.file_uploader(
-        "上传学员信息文件",
+        "将 Excel 或 CSV 拖到此处，也可以点击选择文件",
         type=["xlsx", "csv"],
-        label_visibility="collapsed",
         key="full_excel_upload",
     )
 
@@ -1023,86 +954,22 @@ st.markdown(
         line-height: 1.45;
         margin: 0.15rem 0 0;
     }
-    .excel-drop-visual {
-        margin-bottom: -0.85rem;
-        padding: 1.15rem 1rem 0.35rem;
-        border: 1px dashed var(--line-strong);
-        border-bottom: 0;
-        border-radius: 16px 16px 0 0;
-        background: var(--surface-soft);
-        text-align: center;
-    }
-    .drop-copy {
-        color: var(--ink);
-        font-size: 0.98rem;
-        font-weight: 700;
-        margin: 0.15rem 0 0.15rem;
-    }
-    .drop-sub {
-        color: var(--muted);
-        font-size: 0.82rem;
-        margin: 0 0 0.35rem;
-    }
-    .drop-gesture {
-        display: block;
-        margin: 0 auto 0.15rem;
-    }
-    .drop-tray {
-        fill: #ffffff;
-        stroke: var(--brand);
-        stroke-width: 1.7;
-        stroke-dasharray: 5 4;
-    }
-    .drop-file rect {
-        fill: #ffffff;
-        stroke: var(--brand-deep);
-        stroke-width: 1.6;
-    }
-    .drop-file line {
-        stroke: #8aa39b;
-        stroke-width: 1.5;
-        stroke-linecap: round;
-    }
-    .drop-hand {
-        fill: var(--brand);
-    }
-    .drop-file,
-    .drop-hand {
-        transform-box: fill-box;
-        transform-origin: center;
-    }
-    .drop-file {
-        animation: drop-file-move 2.5s ease-in-out infinite;
-    }
-    .drop-hand {
-        animation: drop-hand-move 2.5s ease-in-out infinite;
-    }
-    @keyframes drop-file-move {
-        0%, 10% { transform: translate(0, 0); opacity: 0.45; }
-        48%, 64% { transform: translate(74px, 30px); opacity: 1; }
-        82% { transform: translate(74px, 36px); opacity: 0.12; }
-        100% { transform: translate(0, 0); opacity: 0.45; }
-    }
-    @keyframes drop-hand-move {
-        0%, 10% { transform: translate(-6px, -10px); }
-        48%, 64% { transform: translate(62px, 18px); }
-        82% { transform: translate(62px, 22px); opacity: 0.35; }
-        100% { transform: translate(-6px, -10px); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .drop-file,
-        .drop-hand { animation: none; }
-    }
     [data-testid="stFileUploaderDropzone"] {
         border: 1px dashed var(--line-strong) !important;
         background: var(--surface-soft) !important;
         border-radius: 12px !important;
     }
+    .st-key-full_excel_upload [data-testid="stFileUploader"] {
+        margin-top: 0.15rem;
+    }
     .st-key-full_excel_upload [data-testid="stFileUploaderDropzone"] {
-        min-height: 7.8rem;
-        border-top: 1px dashed var(--line) !important;
-        border-radius: 0 0 16px 16px !important;
-        padding: 1.15rem 1rem !important;
+        min-height: 10.5rem;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 0.7rem;
+        padding: 1.7rem 1.2rem !important;
+        border-radius: 16px !important;
     }
     .st-key-full_excel_upload [data-testid="stFileUploaderDropzone"]:hover {
         border-color: var(--brand) !important;
