@@ -3,6 +3,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import zipfile
 
 import pandas as pd
@@ -53,6 +54,22 @@ FALLBACK_STANDARD_PRESETS = {
     "企业知识产权合规管理体系（GB/T 29490-2023）": "GB/T 29490-2023",
     "业务连续性管理体系（GB/T 30146-2023/ISO 22301:2019）": "GB/T 30146-2023/ISO 22301:2019",
 }
+
+
+def load_app_version():
+    """Show the deployed main commit as a short version stamp."""
+    try:
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "--short=7", "HEAD"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        if re.fullmatch(r"[0-9a-f]{4,40}", sha):
+            return f"main · {sha}"
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    return "main"
 
 
 def load_standard_presets():
@@ -428,7 +445,6 @@ def records_from_upload():
 
 
 def quick_records(standard_presets):
-    selected_labels = []
     standard_labels = list(standard_presets.keys())
     with st.container(border=True, key="quick_setup"):
         section_title("① 选择标准与培训日期")
@@ -447,15 +463,39 @@ def quick_records(standard_presets):
         with standard_column:
             st.markdown('<p class="field-label">培训标准</p>', unsafe_allow_html=True)
             with st.popover(popover_label, width="stretch"):
-                st.caption("勾选完成后，点击弹出框外即可关闭。")
-                for row_start in range(0, len(standard_labels), 2):
+                search = st.text_input(
+                    "搜索标准",
+                    placeholder="搜索名称或编号，例如 9001",
+                    label_visibility="collapsed",
+                    key="standard_search",
+                )
+                query = search.strip().lower()
+                visible_labels = [
+                    label
+                    for label in standard_labels
+                    if not query
+                    or query in label.lower()
+                    or query in standard_presets[label].lower()
+                    or st.session_state.get(f"standard_option_{label}")
+                ]
+                if query:
+                    st.caption(f"显示 {len(visible_labels)} 项，已选标准会保留在列表中。")
+                else:
+                    st.caption("勾选完成后，点击弹出框外即可关闭。")
+                if not visible_labels:
+                    st.caption("没有匹配的标准。")
+                for row_start in range(0, len(visible_labels), 2):
                     standard_columns = st.columns(2)
                     for column_index, label in enumerate(
-                        standard_labels[row_start : row_start + 2]
+                        visible_labels[row_start : row_start + 2]
                     ):
                         with standard_columns[column_index]:
-                            if st.checkbox(label, key=f"standard_option_{label}"):
-                                selected_labels.append(label)
+                            st.checkbox(label, key=f"standard_option_{label}")
+            selected_labels = [
+                label
+                for label in standard_labels
+                if st.session_state.get(f"standard_option_{label}")
+            ]
 
         with date_column:
             st.markdown(
@@ -631,7 +671,12 @@ def quick_records(standard_presets):
     }
 
 
-st.set_page_config(page_title="证书智能制作工具", page_icon="🎓", layout="centered")
+st.set_page_config(
+    page_title="证书智能制作工具",
+    page_icon="🎓",
+    layout="centered",
+    menu_items={"Get Help": None, "Report a bug": None, "About": None},
+)
 st.markdown(
     """
     <style>
@@ -648,7 +693,34 @@ st.markdown(
         --surface-soft: #f3f8f6;
     }
     header[data-testid="stHeader"] {
-        background: transparent;
+        display: none !important;
+    }
+    [data-testid="stAppToolbar"],
+    [data-testid="stHeaderActionElements"],
+    [data-testid="stToolbar"],
+    [data-testid="stDecoration"],
+    [data-testid="stStatusWidget"],
+    [data-testid="stAppDeployButton"],
+    [data-testid="stToolbarActions"],
+    .stAppDeployButton,
+    #MainMenu,
+    footer,
+    .viewerBadge_container__r5tak,
+    .viewerBadge_link__qRIco,
+    div[class*="viewerBadge"],
+    a[class*="viewerBadge"] {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        position: fixed !important;
+    }
+    [aria-label="Share"],
+    [aria-label="Favorite this app"],
+    [aria-label="Edit this app"],
+    [aria-label="GitHub"],
+    [aria-label="Manage app"],
+    [aria-label="Main menu"] {
+        display: none !important;
     }
     .stApp {
         background:
@@ -663,12 +735,26 @@ st.markdown(
     .hero {
         padding: 0.4rem 0.2rem 1.5rem;
     }
+    .hero-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 1rem;
+        margin-bottom: 0.45rem;
+    }
     .hero-eyebrow {
         color: var(--brand);
         font-size: 0.74rem;
         font-weight: 700;
         letter-spacing: 0.14em;
-        margin-bottom: 0.45rem;
+    }
+    .hero-version {
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
     }
     .hero h1 {
         color: var(--ink);
@@ -889,8 +975,16 @@ st.markdown(
         .setup-status { grid-template-columns: 1fr; }
     }
     </style>
+    """,
+    unsafe_allow_html=True,
+)
+st.markdown(
+    f"""
     <div class="hero">
-        <div class="hero-eyebrow">CERTIFICATE GENERATOR</div>
+        <div class="hero-top">
+            <div class="hero-eyebrow">CERTIFICATE GENERATOR</div>
+            <div class="hero-version">{html.escape(load_app_version())}</div>
+        </div>
         <h1>内审员证书智能制作工具</h1>
         <p>选择标准和培训日期，粘贴学员信息，一次生成全部证书。</p>
     </div>
