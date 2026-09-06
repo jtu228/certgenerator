@@ -476,9 +476,8 @@ def records_from_upload():
             <p class="drop-copy">把文件拖进下方虚线框</p>
             <p class="drop-sub">支持 Excel（.xlsx）和 CSV，也可点击选择文件</p>
         </div>
-        """
-        ,
-        height=220,
+        """,
+        width="stretch",
     )
     uploaded_data = st.file_uploader(
         "上传学员信息文件",
