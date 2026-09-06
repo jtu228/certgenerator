@@ -735,26 +735,12 @@ st.markdown(
     .hero {
         padding: 0.4rem 0.2rem 1.5rem;
     }
-    .hero-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: 1rem;
-        margin-bottom: 0.45rem;
-    }
     .hero-eyebrow {
         color: var(--brand);
         font-size: 0.74rem;
         font-weight: 700;
         letter-spacing: 0.14em;
-    }
-    .hero-version {
-        color: var(--muted);
-        font-size: 0.75rem;
-        font-weight: 500;
-        letter-spacing: 0.02em;
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
+        margin-bottom: 0.45rem;
     }
     .hero h1 {
         color: var(--ink);
@@ -968,6 +954,16 @@ st.markdown(
         border-radius: 12px;
         font-weight: 600;
     }
+    .page-footer {
+        margin-top: 2.2rem;
+        padding-top: 1.1rem;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.75rem;
+        letter-spacing: 0.02em;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+    }
     @media (max-width: 640px) {
         .block-container { padding-top: 2.4rem; }
         .hero h1 { font-size: 1.6rem; }
@@ -979,12 +975,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.markdown(
-    f"""
+    """
     <div class="hero">
-        <div class="hero-top">
-            <div class="hero-eyebrow">CERTIFICATE GENERATOR</div>
-            <div class="hero-version">{html.escape(load_app_version())}</div>
-        </div>
+        <div class="hero-eyebrow">CERTIFICATE GENERATOR</div>
         <h1>内审员证书智能制作工具</h1>
         <p>选择标准和培训日期，粘贴学员信息，一次生成全部证书。</p>
     </div>
@@ -1162,4 +1155,9 @@ if result:
                 width="stretch",
                 help="ZIP 内包含每人的 Word 证书。",
             )
+
+st.markdown(
+    f'<div class="page-footer">{html.escape(load_app_version())}</div>',
+    unsafe_allow_html=True,
+)
 
